@@ -1,1 +1,2 @@
 Flask>=1.1
+#json_logging>=1.2

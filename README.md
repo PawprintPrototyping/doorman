@@ -20,5 +20,5 @@ pip install -r requirements.txt
 # Pre-commit hooks (for development)
 pip install pre-commit && pre-commit install
 
-FLASK_ENVIRONMENT=debug flask run
+FLASK_APP=doorman FLASK_ENVIRONMENT=debug flask run
 ```
