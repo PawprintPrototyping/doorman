@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 import os
 import socket
-import threading
+from functools import wraps
 
 import ldap3
 import requests
-from flask import Flask, request
+from flask import Flask, Response, request
 from requests.auth import HTTPBasicAuth
 
 from . import fanvil
@@ -24,6 +24,15 @@ FANVIL_SSL = os.environ.get("DOORMAN_FANVIL_SSL", False)
 FANVIL_VERIFY_CA = os.environ.get("DOORMAN_FANVIL_CA")
 FANVIL_USER = os.environ.get("DOORMAN_FANVIL_USER", "admin")
 FANVIL_PASS = os.environ.get("DOORMAN_FANVIL_PASS", "admin")
+
+
+def returns_xml(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        r, status = f(*args, **kwargs)
+        return Response(r, content_type="application/xml; charset=utf-8", status=status)
+
+    return decorated_function
 
 
 def open_door(remote_addr):
@@ -60,22 +69,26 @@ def lookup_card(card_number):
 
     if len(conn.response) == 1:
         app.logger.info(f"Card found: {conn.response[0]['attributes']}")
-        open_thread = threading.Thread(target=open_door, args=(request.remote_addr,))
-        open_thread.start()
+        # TODO: write cn to audit log (influxdb)
+        return True
     else:
         app.logger.info("Card not found")
-
-    # TODO: write cn to audit log (influxdb)
+        return False
 
 
 @app.route("/", methods=["GET", "POST"])
+@returns_xml
 def auth():
     if request.method == "POST":
         input_type, input_value = fanvil.parse_command(request.get_data())
         if input_type == fanvil.CARD_ID:
             app.logger.info(f"Got card: {input_value}")
-            lookup_card(input_value)
+            success = lookup_card(input_value)
         elif input_type == fanvil.KEYPAD_INPUT:
             app.logger.info(f"Got keypad input: {input_value}")
-        return "Hello, post!"
-    return "Nope"
+        if success:
+            # this doesn't work
+            xml = """<?xml version="1.0" encoding="UTF-8" ?><RetCode>200</RetCode>"""
+
+            return xml, 200
+    return "Fail", 401
