@@ -17,6 +17,9 @@ source venv/bin/activate
 # Install dependancies
 pip install -r requirements.txt
 
+# Edit configuration template:
+cp envrc.example .envrc
+
 # Pre-commit hooks (for development)
 pip install pre-commit && pre-commit install
 

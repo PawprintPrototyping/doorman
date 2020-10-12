@@ -7,10 +7,12 @@ export FLASK_APP=doorman.app
 export DOORMAN_LDAP_SERVER=ipa.pawprint.space
 export DOORMAN_LDAP_USE_SSL=1
 
+# Service account details for LDAP bind
 export DOORMAN_LDAP_USER_DN="uid=doorman,cn=sysaccounts,cn=etc,dc=pawprint,dc=space"
 export DOORMAN_LDAP_PASS=foobar
 
 export DOORMAN_FANVIL_SSL=1
 export DOORMAN_FANVIL_USER=admin
 export DOORMAN_FANVIL_PASS=admin
+# Unset to skip SSL verification
 export DOORMAN_FANVIL_CA=pawprint-ca.crt
