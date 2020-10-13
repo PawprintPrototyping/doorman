@@ -29,6 +29,19 @@ def parse_uri(uri):
 
 
 def parse_command(xml):
+    """
+    Example card read POST payload:
+
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <PhoneExecute>
+      <ExecuteItem>URI="doorOpen:Card_Id=3980476606@1"</ExecuteItem>
+    <Info>
+    <Model>i31S</Model>
+    <MAC>0c:38:3e:20:cf:81</MAC>
+    <Description>i31S IP Door Phone</Description>
+    </Info>
+    </PhoneExecute>
+    """
     root = ET.fromstring(xml)
     ei = root.find("ExecuteItem")
     uri = ei.text.split('"')[1]
