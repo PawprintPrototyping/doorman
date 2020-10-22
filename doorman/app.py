@@ -35,6 +35,10 @@ def returns_xml(f):
     return decorated_function
 
 
+def return_code_template(status):
+    return f"""<?xml version="1.0" encoding="UTF-8" ?><RetCode>{status}</RetCode>"""
+
+
 def open_door(remote_addr):
     if FANVIL_SSL:
         protocol = "https"
@@ -87,8 +91,5 @@ def auth():
         elif input_type == fanvil.KEYPAD_INPUT:
             app.logger.info(f"Got keypad input: {input_value}")
         if success:
-            # this doesn't work
-            xml = """<?xml version="1.0" encoding="UTF-8" ?><RetCode>200</RetCode>"""
-
-            return xml, 200
-    return "Fail", 401
+            return return_code_template(200), 200
+    return return_code_template(401), 401
