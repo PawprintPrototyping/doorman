@@ -90,6 +90,7 @@ def auth():
             success = lookup_card(input_value)
         elif input_type == fanvil.KEYPAD_INPUT:
             app.logger.info(f"Got keypad input: {input_value}")
+            success = False
         if success:
             return return_code_template(200), 200
     return return_code_template(401), 401
