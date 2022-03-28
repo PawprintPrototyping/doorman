@@ -25,6 +25,8 @@ FANVIL_VERIFY_CA = os.environ.get("DOORMAN_FANVIL_CA")
 FANVIL_USER = os.environ.get("DOORMAN_FANVIL_USER", "admin")
 FANVIL_PASS = os.environ.get("DOORMAN_FANVIL_PASS", "admin")
 
+DOORBELL_WEBHOOK = os.environ.get("DOORMAN_DOORBELL_WEBHOOK")
+
 
 def returns_xml(f):
     @wraps(f)
@@ -94,3 +96,10 @@ def auth():
         if success:
             return return_code_template(200), 200
     return return_code_template(401), 401
+
+
+@app.route("/fanvil/doorbell", methods=["GET"])
+@returns_xml
+def doorbell():
+    requests.post(DOORBELL_WEBHOOK)
+    return return_code_template(200), 200
