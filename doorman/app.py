@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import json
 import os
 import socket
 from functools import wraps
@@ -26,6 +27,8 @@ FANVIL_USER = os.environ.get("DOORMAN_FANVIL_USER", "admin")
 FANVIL_PASS = os.environ.get("DOORMAN_FANVIL_PASS", "admin")
 
 DOORBELL_WEBHOOK = os.environ.get("DOORMAN_DOORBELL_WEBHOOK")
+ACCESS_PINS = json.loads(os.environ.get("DOORMAN_ACCESS_PINS", "{}"))
+SUCCESS_WEBHOOK = os.environ.get("DOORMAN_SUCCESS_WEBHOOK")
 
 
 def returns_xml(f):
@@ -69,17 +72,32 @@ def lookup_card(card_number):
         search_filter = f"(&(rfidbadge={card_number})(!(nsAccountLock=TRUE)))"
         app.logger.debug(f"SearchDN: {LDAP_BASE_DN} Search filter: {search_filter}")
         conn.search(
-            LDAP_BASE_DN, search_filter, attributes=["cn"],
+            LDAP_BASE_DN, search_filter, attributes=["cn", "uid"],
         )
         app.logger.info(f"Response: {conn.response}")
 
     if len(conn.response) == 1:
         app.logger.info(f"Card found: {conn.response[0]['attributes']}")
         # TODO: write cn to audit log (influxdb)
+        if SUCCESS_WEBHOOK:
+            webhook_data = {"_type": "CARD", "card_number": card_number}
+            webhook_data.update(conn.response[0]['attributes'])
+            requests.post(SUCCESS_WEBHOOK, webhook_data)
         return True
     else:
         app.logger.info("Card not found")
         return False
+
+
+def lookup_pin(input_value):
+    for pin in ACCESS_PINS:
+        if input_value == str(pin):
+            app.logger(f"Access granted by PIN for {ACCESS_PINS[pin]}")
+            if SUCCESS_WEBHOOK:
+                webhook_data = {"_type": "PIN", "cn": ACCESS_PINS[pin]}
+                requests.post(SUCCESS_WEBHOOK, webhook_data)
+            return True
+    return False
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -92,7 +110,7 @@ def auth():
             success = lookup_card(input_value)
         elif input_type == fanvil.KEYPAD_INPUT:
             app.logger.info(f"Got keypad input: {input_value}")
-            success = False
+            success = lookup_pin(input_value)
         if success:
             return return_code_template(200), 200
     return return_code_template(401), 401
