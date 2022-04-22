@@ -92,7 +92,7 @@ def lookup_card(card_number):
 def lookup_pin(input_value):
     for pin in ACCESS_PINS:
         if input_value == str(pin):
-            app.logger(f"Access granted by PIN for {ACCESS_PINS[pin]}")
+            app.logger.info(f"Access granted by PIN for {ACCESS_PINS[pin]}")
             if SUCCESS_WEBHOOK:
                 webhook_data = {"_type": "PIN", "cn": ACCESS_PINS[pin]}
                 requests.post(SUCCESS_WEBHOOK, webhook_data)
