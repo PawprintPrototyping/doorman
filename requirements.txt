@@ -1,4 +1,4 @@
-Flask>=1.1
-ldap3>=2.8
-requests==2.24.0
+Flask>=2.3.3
+ldap3>=2.9.1
+requests~=2.32.3
 #json_logging>=1.2
