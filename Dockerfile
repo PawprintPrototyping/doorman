@@ -1,4 +1,4 @@
-FROM tiangolo/meinheld-gunicorn-flask:python3.8-alpine3.11
+FROM tiangolo/meinheld-gunicorn-flask:python3.9
 COPY ./doorman /app/doorman
 COPY requirements.txt /app
 RUN pip install --upgrade pip
