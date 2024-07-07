@@ -82,7 +82,11 @@ def lookup_card(card_number):
         if SUCCESS_WEBHOOK:
             webhook_data = {"_type": "CARD", "card_number": card_number}
             webhook_data.update(conn.response[0]['attributes'])
-            requests.post(SUCCESS_WEBHOOK, webhook_data)
+            try:
+                requests.post(SUCCESS_WEBHOOK, webhook_data)
+            except requests.RequestException as e:
+                app.logger.error("Exception while trying to send success webhook:")
+                app.logger.exception(e)
         return True
     else:
         app.logger.info("Card not found")
@@ -95,7 +99,11 @@ def lookup_pin(input_value):
             app.logger.info(f"Access granted by PIN for {ACCESS_PINS[pin]}")
             if SUCCESS_WEBHOOK:
                 webhook_data = {"_type": "PIN", "cn": ACCESS_PINS[pin]}
-                requests.post(SUCCESS_WEBHOOK, webhook_data)
+                try:
+                    requests.post(SUCCESS_WEBHOOK, webhook_data)
+                except requests.RequestException as e:
+                    app.logger.error("Exception while trying to send success webhook:")
+                    app.logger.exception(e)
             return True
     return False
 
