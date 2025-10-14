@@ -11,8 +11,14 @@ export DOORMAN_LDAP_USE_SSL=1
 export DOORMAN_LDAP_USER_DN="uid=doorman,cn=sysaccounts,cn=etc,dc=pawprint,dc=space"
 export DOORMAN_LDAP_PASS=foobar
 
-export DOORMAN_FANVIL_SSL=1
+exoprt DOORMAN_FANVIL_URL=fanvil
 export DOORMAN_FANVIL_USER=admin
 export DOORMAN_FANVIL_PASS=admin
 # Unset to skip SSL verification
 export DOORMAN_FANVIL_CA=pawprint-ca.crt
+
+# Websocket connection to Member Matters
+export DOORMAN_MM_ACCESS_URL=ws://membermatters.local/ws/access
+export DOORMAN_MM_DEVICE_NAME=frontdoor_test
+export DOORMAN_MM_API_KEY=super.secret
+

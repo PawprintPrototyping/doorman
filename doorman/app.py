@@ -21,7 +21,7 @@ LDAP_BASE_DN = os.environ.get(
 LDAP_USER_DN = os.environ.get("DOORMAN_LDAP_USER_DN")
 LDAP_PASS = os.environ.get("DOORMAN_LDAP_PASS")
 
-FANVIL_SSL = os.environ.get("DOORMAN_FANVIL_SSL", False)
+FANVIL_URL = os.environ.get("DOORMAN_FANVIL_URL", "http://fanvil")
 FANVIL_VERIFY_CA = os.environ.get("DOORMAN_FANVIL_CA")
 FANVIL_USER = os.environ.get("DOORMAN_FANVIL_USER", "admin")
 FANVIL_PASS = os.environ.get("DOORMAN_FANVIL_PASS", "admin")
@@ -44,22 +44,10 @@ def return_code_template(status):
     return f"""<?xml version="1.0" encoding="UTF-8" ?><RetCode>{status}</RetCode>"""
 
 
-def open_door(remote_addr):
-    if FANVIL_SSL:
-        protocol = "https"
-    else:
-        protocol = "http"
-
-    try:
-        reversed_dns = socket.gethostbyaddr(remote_addr)
-        host = reversed_dns[0]
-    except Exception:
-        app.logger.warn("Unable to get reverse DNS for request host")
-        host = remote_addr
-
+def open_door(url=FANVIL_URL):
     # Change code= to match the value in EGS settings > features > calling
     # password (* by default)
-    url = f"{protocol}://{host}/cgi-bin/ConfigManApp.com?Key=F_LOCK&code=*"
+    url = f"{FANVIL_URL}/cgi-bin/ConfigManApp.com?Key=F_LOCK&code=*"
     auth = HTTPBasicAuth(FANVIL_USER, FANVIL_PASS)
 
     requests.get(url, auth=auth, verify=FANVIL_VERIFY_CA)
