@@ -57,22 +57,28 @@ def open_door(url=FANVIL_URL):
 
     requests.get(url, auth=auth, verify=FANVIL_VERIFY_CA)
 
+
 def _lookup_mm(card_number: str) -> bool:
     with open(MM_DATA_FILE) as f:
         mm_data = json.load(f)
     authorized_tags = mm_data.get("tags", [])
     locked_out = mm_data.get("locked_out", False)
     if locked_out:
-        app.logger.info("This MemberMatters device was set to locked_out by the server!")
+        app.logger.info(
+            "This MemberMatters device was set to locked_out by the server!"
+        )
         return False
 
-    app.logger.debug(f"Loaded {len(authorized_tags)} tags from MemberMatters cache at {MM_DATA_FILE}")
+    app.logger.debug(
+        f"Loaded {len(authorized_tags)} tags from MemberMatters cache at {MM_DATA_FILE}"
+    )
     if card_number in authorized_tags:
         app.logger.info(f"card_number: {card_number} is authorized by MemberMatters")
         return True
 
     app.logger.debug(f"card_number: {card_number} not authorized by MemberMatters")
     return False
+
 
 def _lookup_ldap(card_number: str) -> bool:
     ldap_server = ldap3.Server(LDAP_SERVER, use_ssl=LDAP_USE_SSL)
@@ -81,7 +87,9 @@ def _lookup_ldap(card_number: str) -> bool:
         search_filter = f"(&(rfidbadge={card_number})(!(nsAccountLock=TRUE)))"
         app.logger.debug(f"SearchDN: {LDAP_BASE_DN} Search filter: {search_filter}")
         conn.search(
-            LDAP_BASE_DN, search_filter, attributes=["cn", "uid"],
+            LDAP_BASE_DN,
+            search_filter,
+            attributes=["cn", "uid"],
         )
         app.logger.info(f"Response: {conn.response}")
 
@@ -90,7 +98,7 @@ def _lookup_ldap(card_number: str) -> bool:
         # TODO: write cn to audit log (influxdb)
         if SUCCESS_WEBHOOK:
             webhook_data = {"_type": "CARD", "card_number": card_number}
-            webhook_data.update(conn.response[0]['attributes'])
+            webhook_data.update(conn.response[0]["attributes"])
             try:
                 requests.post(SUCCESS_WEBHOOK, webhook_data)
             except requests.RequestException as e:

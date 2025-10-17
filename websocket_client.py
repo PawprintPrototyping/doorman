@@ -1,49 +1,59 @@
-import os
-from enum import Enum
-import _thread
-import time
 import json
 import logging
+import os
+from enum import Enum
 
-from rich.logging import RichHandler
-import websocket
 import rel
+import websocket
+from rich.logging import RichHandler
 
-from doorman.app import open_door, env_bool
+from doorman.app import env_bool, open_door
+
 
 class AccessDeviceType(Enum):
     DOOR = "door"
     INTERLOCK = "interlock"
+
     def __str__(self):
         return f"{self.value}"
 
-MM_ACCESS_URL = os.environ.get("DOORMAN_MM_ACCESS_URL", "ws://membermatters.local/ws/access")
+
+MM_ACCESS_URL = os.environ.get(
+    "DOORMAN_MM_ACCESS_URL", "ws://membermatters.local/ws/access"
+)
 MM_DEVICE_NAME = os.environ.get("DOORMAN_MM_DEVICE_NAME", "Unnamed")
-MM_DEVICE_TYPE = AccessDeviceType[os.environ.get("DOORMAN_MM_DEVICE_TYPE", "DOOR").upper()]
+MM_DEVICE_TYPE = AccessDeviceType[
+    os.environ.get("DOORMAN_MM_DEVICE_TYPE", "DOOR").upper()
+]
 MM_DATA_FILE = os.environ.get("DOORMAN_MM_DATA_FILE", "/tmp/mm-doorman.json")
 MM_API_KEY = os.environ.get("DOORMAN_MM_API_KEY", "unset")
 DEBUG = env_bool(os.environ.get("DEBUG", False))
 
-logging.basicConfig(level=logging.NOTSET, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()])
+logging.basicConfig(
+    level=logging.NOTSET, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
+)
 logger = logging.getLogger("doorman_client")
 logger.setLevel(logging.INFO)
 if DEBUG:
     logger.setLevel(logging.DEBUG)
 
+
 class MMAccessClient(websocket.WebSocketApp):
     def __init__(self, *args, **kwargs):
         websocket.enableTrace(kwargs.get("debug", False))
         self.locked_out = False
-        super().__init__(f"{MM_ACCESS_URL}/{MM_DEVICE_TYPE}/{MM_DEVICE_NAME}",
-                                    on_open=self.on_open,
-                                    on_message=self.on_message,
-                                    on_error=self.on_error,
-                                    on_close=self.on_close)
-
+        super().__init__(
+            f"{MM_ACCESS_URL}/{MM_DEVICE_TYPE}/{MM_DEVICE_NAME}",
+            on_open=self.on_open,
+            on_message=self.on_message,
+            on_error=self.on_error,
+            on_close=self.on_close,
+        )
 
     def run(self):
-        self.run_forever(dispatcher=rel,
-                       reconnect=15)  # Set dispatcher to automatic reconnection, 15-second reconnect delay if connection closed unexpectedly
+        self.run_forever(
+            dispatcher=rel, reconnect=15
+        )  # Set dispatcher to automatic reconnection, 15-second reconnect delay if connection closed unexpectedly
         rel.signal(2, rel.abort)  # Keyboard Interrupt
         rel.dispatch()
 
@@ -112,6 +122,7 @@ class MMAccessClient(websocket.WebSocketApp):
             "secret_key": MM_API_KEY,
         }
         self.send(json.dumps(auth_packet))
+
 
 if __name__ == "__main__":
     client = MMAccessClient(debug=DEBUG)

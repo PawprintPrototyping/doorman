@@ -1,20 +1,24 @@
-default_language_version:
-  python: python3.7
-
 exclude: ^(migrations|venv)/
 
 repos:
   - repo: https://github.com/asottile/seed-isort-config
-    rev: v1.9.4
+    rev: v2.2.0
     hooks:
       - id: seed-isort-config
 
-  - repo: git://github.com/pre-commit/mirrors-isort
-    rev: v4.3.21
+  - repo: https://github.com/pycqa/isort
+    rev: 7.0.0
     hooks:
       - id: isort
+        name: isort (python)
 
-  - repo: git://github.com/pre-commit/pre-commit-hooks
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        name: flake8 (python)
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.4.0
     hooks:
       - id: check-builtin-literals
@@ -24,6 +28,6 @@ repos:
       - id: check-ast
 
   - repo: https://github.com/ambv/black
-    rev: 19.10b0
+    rev: 25.9.0
     hooks:
       - id: black
