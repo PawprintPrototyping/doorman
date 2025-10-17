@@ -1,26 +1,30 @@
-source venv/bin/activate
-
-export FLASK_HOST=0.0.0.0
-export FLASK_ENV=development
-export FLASK_APP=doorman.app
+FLASK_HOST=0.0.0.0
+FLASK_ENV=development
+FLASK_APP=doorman.app
 
 # Websocket connection to Member Matters
-export DOORMAN_LDAP_ENABLE=true
-export DOORMAN_MM_ACCESS_URL=ws://membermatters.local/ws/access
-export DOORMAN_MM_DEVICE_NAME=frontdoor_test
-export DOORMAN_MM_API_KEY=super.secret
+DOORMAN_MM_ENABLE=true
+DOORMAN_MM_ACCESS_URL=ws://membermatters.local/ws/access
+DOORMAN_MM_DEVICE_NAME=frontdoor_test
+DOORMAN_MM_API_KEY=super.secret
 
 # LDAP Configuration
-export DOORMAN_LDAP_ENABLE=true
-export DOORMAN_LDAP_SERVER=ipa.pawprint.space
-export DOORMAN_LDAP_USE_SSL=true
+DOORMAN_LDAP_ENABLE=true
+DOORMAN_LDAP_SERVER=ipa.pawprint.space
+DOORMAN_LDAP_USE_SSL=true
 
 # Service account details for LDAP bind
-export DOORMAN_LDAP_USER_DN="uid=doorman,cn=sysaccounts,cn=etc,dc=pawprint,dc=space"
-export DOORMAN_LDAP_PASS=foobar
+DOORMAN_LDAP_USER_DN="uid=doorman,cn=sysaccounts,cn=etc,dc=pawprint,dc=space"
+DOORMAN_LDAP_PASS=foobar
 
-exoprt DOORMAN_FANVIL_URL=fanvil
-export DOORMAN_FANVIL_USER=admin
-export DOORMAN_FANVIL_PASS=admin
+DOORMAN_FANVIL_URL=https://fanvil.local
+DOORMAN_FANVIL_USER=admin
+DOORMAN_FANVIL_PASS=admin
 # Unset to skip SSL verification
-export DOORMAN_FANVIL_CA=pawprint-ca.crt
+DOORMAN_FANVIL_CA=pawprint-ca.crt
+
+# Uncomment for .envrc use:
+#export FLASK_HOST FLASK_ENV FLASK_APP
+#export DOORMAN_MM_ENABLE DOORMAN_MM_ACCESS_URL DOORMAN_MM_DEVICE_NAME DOORMAN_MM_API_KEY
+#export DOORMAN_LDAP_ENABLE DOORMAN_LDAP_SERVER DOORMAN_LDAP_USE_SSL DOORMAN_LDAP_USER_DN DOORMAN_LDAP_PASS
+#export DOORMAN_FANVIL_URL DOORMAN_FANVIL_PASS DOORMAN_FANVIL_CA
