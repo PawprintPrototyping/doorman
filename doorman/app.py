@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import json
 import os
-import socket
 from functools import wraps
 
 import ldap3
@@ -13,8 +12,14 @@ from . import fanvil
 
 app = Flask(__name__)
 
+env_bool = lambda s: str(s).lower() in ("1", "t", "true", "y", "yes")
+
+LDAP_ENABLE = env_bool(os.environ.get("DOORMAN_LDAP_ENABLE", True))
+MM_ENABLE = env_bool(os.environ.get("DOORMAN_MM_ENABLE", True))
+MM_DATA_FILE = os.environ.get("DOORMAN_MM_DATA_FILE", "/tmp/mm-doorman.json")
+
 LDAP_SERVER = os.environ.get("DOORMAN_LDAP_SERVER", "localhost")
-LDAP_USE_SSL = os.environ.get("DOORMAN_LDAP_USE_SSL", False)
+LDAP_USE_SSL = env_bool(os.environ.get("DOORMAN_LDAP_USE_SSL", False))
 LDAP_BASE_DN = os.environ.get(
     "DOORMAN_LDAP_BASE_DN", "cn=users,cn=accounts,dc=pawprint,dc=space"
 )
@@ -52,8 +57,24 @@ def open_door(url=FANVIL_URL):
 
     requests.get(url, auth=auth, verify=FANVIL_VERIFY_CA)
 
+def _lookup_mm(card_number: str) -> bool:
+    with open(MM_DATA_FILE) as f:
+        mm_data = json.load(f)
+    authorized_tags = mm_data.get("tags", [])
+    locked_out = mm_data.get("locked_out", False)
+    if locked_out:
+        app.logger.info("This MemberMatters device was set to locked_out by the server!")
+        return False
 
-def lookup_card(card_number):
+    app.logger.debug(f"Loaded {len(authorized_tags)} tags from MemberMatters cache at {MM_DATA_FILE}")
+    if card_number in authorized_tags:
+        app.logger.info(f"card_number: {card_number} is authorized by MemberMatters")
+        return True
+
+    app.logger.debug(f"card_number: {card_number} not authorized by MemberMatters")
+    return False
+
+def _lookup_ldap(card_number: str) -> bool:
     ldap_server = ldap3.Server(LDAP_SERVER, use_ssl=LDAP_USE_SSL)
     with ldap3.Connection(ldap_server, LDAP_USER_DN, LDAP_PASS, auto_bind=True) as conn:
         app.logger.info(conn)
@@ -79,6 +100,13 @@ def lookup_card(card_number):
     else:
         app.logger.info("Card not found")
         return False
+
+
+def lookup_card(card_number: str) -> bool:
+    ret = _lookup_mm(card_number)
+    if not ret:
+        ret = _lookup_ldap(card_number)
+    return ret
 
 
 def lookup_pin(input_value):

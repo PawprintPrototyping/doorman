@@ -5,10 +5,11 @@ import time
 import json
 import logging
 
+from rich.logging import RichHandler
 import websocket
 import rel
 
-from doorman.app import open_door
+from doorman.app import open_door, env_bool
 
 class AccessDeviceType(Enum):
     DOOR = "door"
@@ -21,70 +22,97 @@ MM_DEVICE_NAME = os.environ.get("DOORMAN_MM_DEVICE_NAME", "Unnamed")
 MM_DEVICE_TYPE = AccessDeviceType[os.environ.get("DOORMAN_MM_DEVICE_TYPE", "DOOR").upper()]
 MM_DATA_FILE = os.environ.get("DOORMAN_MM_DATA_FILE", "/tmp/mm-doorman.json")
 MM_API_KEY = os.environ.get("DOORMAN_MM_API_KEY", "unset")
+DEBUG = env_bool(os.environ.get("DEBUG", False))
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.NOTSET, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()])
+logger = logging.getLogger("doorman_client")
+logger.setLevel(logging.INFO)
+if DEBUG:
+    logger.setLevel(logging.DEBUG)
 
-def save_tags(data):
-    with open(MM_DATA_FILE, "w") as tags_file:
-        tags_doc = {
-            "tags": data["tags"],
-            "hash": data["hash"],
-        }
-        json.dump(tags_doc, tags_file)
+class MMAccessClient(websocket.WebSocketApp):
+    def __init__(self, *args, **kwargs):
+        websocket.enableTrace(kwargs.get("debug", False))
+        self.locked_out = False
+        super().__init__(f"{MM_ACCESS_URL}/{MM_DEVICE_TYPE}/{MM_DEVICE_NAME}",
+                                    on_open=self.on_open,
+                                    on_message=self.on_message,
+                                    on_error=self.on_error,
+                                    on_close=self.on_close)
 
 
-def parse_command(data):
-    match data.get("command"):
-        case "ping":
+    def run(self):
+        self.run_forever(dispatcher=rel,
+                       reconnect=15)  # Set dispatcher to automatic reconnection, 15-second reconnect delay if connection closed unexpectedly
+        rel.signal(2, rel.abort)  # Keyboard Interrupt
+        rel.dispatch()
+
+    def save_tags(self, data):
+        with open(MM_DATA_FILE, "w") as tags_file:
+            tags_doc = {
+                "tags": data["tags"],
+                "hash": data["hash"],
+                "locked_out": self.locked_out,
+            }
+            json.dump(tags_doc, tags_file)
+
+    def load_tags(self):
+        with open(MM_DATA_FILE) as tags_file:
+            data = json.load(tags_file)
+        self.locked_out = data.get("locked_out", False)
+        return data
+
+    def update_device_locked_out(self, locked_out: bool) -> None:
+        logger.info(f"Update device lockout: locked_out = {locked_out}")
+        tags_doc = self.load_tags()
+        self.locked_out = locked_out
+        self.save_tags(tags_doc)
+
+    def parse_command(self, data):
+        command = data.get("command")
+        if command == "ping":
             websocket.send(json.dumps({"command": "pong"}))
 
-        case "reboot":
+        elif command == "reboot":
             # Not implemented (lol)
             pass
 
-        case "bump":
+        elif command == "bump":
             # Bump the door open
             open_door()
 
-        case "sync":
+        elif command == "sync":
             # Save synced tags to a file
-            save_tags(data)
+            self.save_tags(data)
 
+        elif command == "update_device_locked_out":
+            self.update_device_locked_out(data.get("locked_out", False))
 
-def on_message(ws, message):
-    print(f"> {message}")
-    try:
-        data = json.loads(message)
-        parse_command(data)
-    except json.decoder.JSONDecodeError as e:
-        logger.exception(e)
-        return
+    def on_message(self, ws, message):
+        logger.debug(f"> {message}")
+        try:
+            data = json.loads(message)
+            self.parse_command(data)
+        except json.decoder.JSONDecodeError as e:
+            logger.exception(e)
+            return
 
+    def on_error(self, ws, error):
+        logger.error(f"[SOCKET ERROR]: {error}")
 
-def on_error(ws, error):
-    print(f"[ERROR]: {error}")
+    def on_close(self, ws, close_status_code, close_msg):
+        logger.info("### closed ###")
+        logger.info(f"Status: {close_status_code}, Message: {close_msg}")
 
-def on_close(ws, close_status_code, close_msg):
-    print("### closed ###")
-    print("Status: {close_status_code}, Message: {close_msg}")
-
-def on_open(ws):
-    print("Opened connection")
-    # Send auth
-    auth_packet = {
-        "command": "authenticate",
-        "secret_key": MM_API_KEY,
-    }
-    ws.send(json.dumps(auth_packet))
+    def on_open(self, data):
+        logger.info(f"Opened connection to {self.url}, sending auth.")
+        # Send auth
+        auth_packet = {
+            "command": "authenticate",
+            "secret_key": MM_API_KEY,
+        }
+        self.send(json.dumps(auth_packet))
 
 if __name__ == "__main__":
-    #websocket.enableTrace(True)
-    ws = websocket.WebSocketApp(f"{MM_ACCESS_URL}/{MM_DEVICE_TYPE}/{MM_DEVICE_NAME}",
-                              on_open=on_open,
-                              on_message=on_message,
-                              on_error=on_error,
-                              on_close=on_close)
-
-    ws.run_forever(dispatcher=rel, reconnect=5)  # Set dispatcher to automatic reconnection, 5 second reconnect delay if connection closed unexpectedly
-    rel.signal(2, rel.abort)  # Keyboard Interrupt
-    rel.dispatch()
+    client = MMAccessClient(debug=DEBUG)
+    client.run()

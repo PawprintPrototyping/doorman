@@ -141,3 +141,5 @@ cython_debug/
 
 .envrc
 .idea
+
+mm-doorman.json
