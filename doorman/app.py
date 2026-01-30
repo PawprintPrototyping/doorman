@@ -61,6 +61,9 @@ def open_door(url=FANVIL_URL):
 def _lookup_mm(card_number: str) -> bool:
     with open(MM_DATA_FILE) as f:
         mm_data = json.load(f)
+    app.logger.debug(
+        f"Loaded {len(authorized_tags)} tags from MemberMatters cache at {MM_DATA_FILE}"
+    )
     authorized_tags = mm_data.get("tags", [])
     locked_out = mm_data.get("locked_out", False)
     if locked_out:
@@ -69,9 +72,6 @@ def _lookup_mm(card_number: str) -> bool:
         )
         return False
 
-    app.logger.debug(
-        f"Loaded {len(authorized_tags)} tags from MemberMatters cache at {MM_DATA_FILE}"
-    )
     if card_number in authorized_tags:
         app.logger.info(f"card_number: {card_number} is authorized by MemberMatters")
         return True
