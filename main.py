@@ -8,8 +8,8 @@ The websocket client runs in a daemon thread so it dies with the process.
 
 import threading
 
-from doorman.app import app
-from websocket_client import MMAccessClient, DEBUG
+from doorman.app import app  # noqa: F401 — gunicorn imports `app` from this module
+from websocket_client import DEBUG, MMAccessClient
 
 
 def start_websocket_client():
@@ -18,5 +18,7 @@ def start_websocket_client():
 
 
 # Start the websocket client in a daemon thread
-ws_thread = threading.Thread(target=start_websocket_client, daemon=True, name="mm-ws-client")
+ws_thread = threading.Thread(
+    target=start_websocket_client, daemon=True, name="mm-ws-client"
+)
 ws_thread.start()

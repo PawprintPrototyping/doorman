@@ -7,7 +7,7 @@ repos:
       - id: seed-isort-config
 
   - repo: https://github.com/pycqa/isort
-    rev: 7.0.0
+    rev: 9.0.0a3
     hooks:
       - id: isort
         name: isort (python)
@@ -19,15 +19,14 @@ repos:
         name: flake8 (python)
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.4.0
+    rev: v6.0.0
     hooks:
       - id: check-builtin-literals
       - id: trailing-whitespace
       - id: end-of-file-fixer
-      - id: flake8
       - id: check-ast
 
   - repo: https://github.com/ambv/black
-    rev: 25.9.0
+    rev: 26.3.1
     hooks:
       - id: black

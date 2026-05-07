@@ -62,10 +62,10 @@ def open_door(url=FANVIL_URL):
 def _lookup_mm(card_number: str) -> bool:
     with open(MM_DATA_FILE) as f:
         mm_data = json.load(f)
+    authorized_tags = mm_data.get("tags", [])
     app.logger.debug(
         f"Loaded {len(authorized_tags)} tags from MemberMatters cache at {MM_DATA_FILE}"
     )
-    authorized_tags = mm_data.get("tags", [])
     locked_out = mm_data.get("locked_out", False)
     if locked_out:
         app.logger.info(
@@ -147,11 +147,13 @@ def auth():
         if success:
             # Notify the websocket client to send a door_access event
             if input_type == fanvil.CARD_ID:
-                door_access_queue.put({
-                    "id_number": input_value,
-                    "success": True,
-                    "method": "rfid",
-                })
+                door_access_queue.put(
+                    {
+                        "id_number": input_value,
+                        "success": True,
+                        "method": "rfid",
+                    }
+                )
             return return_code_template(200), 200
     return return_code_template(401), 401
 

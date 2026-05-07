@@ -88,7 +88,9 @@ class MMAccessClient(websocket.WebSocketApp):
                 "method": method,
             },
         }
-        logger.info(f"Sending door_access: id={id_number} success={success} method={method}")
+        logger.info(
+            f"Sending door_access: id={id_number} success={success} method={method}"
+        )
         self.send(json.dumps(packet))
 
     def save_tags(self, data):
