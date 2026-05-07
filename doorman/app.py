@@ -9,6 +9,7 @@ from flask import Flask, Response, request
 from requests.auth import HTTPBasicAuth
 
 from . import fanvil
+from .ipc import door_access_queue
 
 app = Flask(__name__)
 
@@ -144,6 +145,13 @@ def auth():
             app.logger.info(f"Got keypad input: {input_value}")
             success = lookup_pin(input_value)
         if success:
+            # Notify the websocket client to send a door_access event
+            if input_type == fanvil.CARD_ID:
+                door_access_queue.put({
+                    "id_number": input_value,
+                    "success": True,
+                    "method": "rfid",
+                })
             return return_code_template(200), 200
     return return_code_template(401), 401
 

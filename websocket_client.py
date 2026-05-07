@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import queue
+import time
 from enum import Enum
 
 import rel
@@ -8,6 +10,7 @@ import websocket
 from rich.logging import RichHandler
 
 from doorman.app import env_bool, open_door
+from doorman.ipc import door_access_queue
 
 
 class AccessDeviceType(Enum):
@@ -54,8 +57,39 @@ class MMAccessClient(websocket.WebSocketApp):
         self.run_forever(
             dispatcher=rel, reconnect=15
         )  # Set dispatcher to automatic reconnection, 15-second reconnect delay if connection closed unexpectedly
+        # Poll the door_access queue every 0.5s and forward events to the server
+        rel.timeout(0.5, self._poll_door_access_queue)
         rel.signal(2, rel.abort)  # Keyboard Interrupt
         rel.dispatch()
+
+    def _poll_door_access_queue(self):
+        """Check the shared queue for door_access events and send them."""
+        try:
+            while True:
+                event = door_access_queue.get_nowait()
+                self.send_door_access(
+                    id_number=event["id_number"],
+                    success=event["success"],
+                    method=event.get("method", "rfid"),
+                )
+        except queue.Empty:
+            pass
+        # Re-schedule ourselves — returning True keeps the rel timeout alive
+        return True
+
+    def send_door_access(self, id_number: str, success: bool, method: str = "rfid"):
+        """Send a door_access command to the MemberMatters server."""
+        packet = {
+            "command": "door_access",
+            "payload": {
+                "id_number": id_number,
+                "time": str(int(time.time())),
+                "success": success,
+                "method": method,
+            },
+        }
+        logger.info(f"Sending door_access: id={id_number} success={success} method={method}")
+        self.send(json.dumps(packet))
 
     def save_tags(self, data):
         with open(MM_DATA_FILE, "w") as tags_file:
@@ -125,5 +159,6 @@ class MMAccessClient(websocket.WebSocketApp):
 
 
 if __name__ == "__main__":
+    # Standalone mode: run without Flask (useful for local testing)
     client = MMAccessClient(debug=DEBUG)
     client.run()
