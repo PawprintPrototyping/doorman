@@ -17,6 +17,10 @@ DOORMAN_LDAP_USE_SSL=true
 DOORMAN_LDAP_USER_DN="uid=doorman,cn=sysaccounts,cn=etc,dc=pawprint,dc=space"
 DOORMAN_LDAP_PASS=foobar
 
+# Optional notification for LDAP lookup.  Leave unset to disable.
+# https://appriseit.com/url-builder/
+#DOORMAN_LDAP_APPRISE_URL=
+
 DOORMAN_FANVIL_URL=https://fanvil.local
 DOORMAN_FANVIL_USER=admin
 DOORMAN_FANVIL_PASS=admin

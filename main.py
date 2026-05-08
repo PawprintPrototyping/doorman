@@ -12,7 +12,7 @@ from doorman.app import app  # noqa: F401 — gunicorn imports `app` from this m
 from websocket_client import DEBUG, MMAccessClient
 
 
-def start_websocket_client():
+def start_websocket_client() -> None:
     client = MMAccessClient(debug=DEBUG)
     client.run()
 

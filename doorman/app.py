@@ -3,6 +3,7 @@ import json
 import os
 from functools import wraps
 
+import apprise
 import ldap3
 import requests
 from flask import Flask, Response, request
@@ -13,7 +14,10 @@ from .ipc import door_access_queue
 
 app = Flask(__name__)
 
-env_bool = lambda s: str(s).lower() in ("1", "t", "true", "y", "yes")
+
+def env_bool(s) -> bool:
+    return str(s).lower() in ("1", "t", "true", "y", "yes")
+
 
 LDAP_ENABLE = env_bool(os.environ.get("DOORMAN_LDAP_ENABLE", True))
 MM_ENABLE = env_bool(os.environ.get("DOORMAN_MM_ENABLE", True))
@@ -35,22 +39,23 @@ FANVIL_PASS = os.environ.get("DOORMAN_FANVIL_PASS", "admin")
 DOORBELL_WEBHOOK = os.environ.get("DOORMAN_DOORBELL_WEBHOOK")
 ACCESS_PINS = json.loads(os.environ.get("DOORMAN_ACCESS_PINS", "{}"))
 SUCCESS_WEBHOOK = os.environ.get("DOORMAN_SUCCESS_WEBHOOK")
+LDAP_APPRISE_URL = os.environ.get("DOORMAN_LDAP_APPRISE_URL")
 
 
 def returns_xml(f):
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args, **kwargs) -> Response:
         r, status = f(*args, **kwargs)
         return Response(r, content_type="application/xml; charset=utf-8", status=status)
 
     return decorated_function
 
 
-def return_code_template(status):
+def return_code_template(status: int) -> str:
     return f"""<?xml version="1.0" encoding="UTF-8" ?><RetCode>{status}</RetCode>"""
 
 
-def open_door(url=FANVIL_URL):
+def open_door(url: str = FANVIL_URL) -> None:
     # Change code= to match the value in EGS settings > features > calling
     # password (* by default)
     url = f"{FANVIL_URL}/cgi-bin/ConfigManApp.com?Key=F_LOCK&code=*"
@@ -81,6 +86,22 @@ def _lookup_mm(card_number: str) -> bool:
     return False
 
 
+def _notify_ldap(card_number: str, attributes: dict) -> None:
+    """Send a notification when access is granted via LDAP."""
+    if not LDAP_APPRISE_URL:
+        return
+    ap = apprise.Apprise()
+    ap.add(LDAP_APPRISE_URL)
+    cn = attributes.get("cn", "unknown")
+    uid = attributes.get("uid", "unknown")
+    ap.notify(
+        title="Doorman",
+        body=(
+            f"Card {card_number} was granted access via LDAP.\n" f"CN: {cn}, UID: {uid}"
+        ),
+    )
+
+
 def _lookup_ldap(card_number: str) -> bool:
     ldap_server = ldap3.Server(LDAP_SERVER, use_ssl=LDAP_USE_SSL)
     with ldap3.Connection(ldap_server, LDAP_USER_DN, LDAP_PASS, auto_bind=True) as conn:
@@ -97,6 +118,8 @@ def _lookup_ldap(card_number: str) -> bool:
     if len(conn.response) == 1:
         app.logger.info(f"Card found: {conn.response[0]['attributes']}")
         # TODO: write cn to audit log (influxdb)
+        if LDAP_APPRISE_URL:
+            _notify_ldap(card_number, conn.response[0]["attributes"])
         if SUCCESS_WEBHOOK:
             webhook_data = {"_type": "CARD", "card_number": card_number}
             webhook_data.update(conn.response[0]["attributes"])
@@ -112,13 +135,21 @@ def _lookup_ldap(card_number: str) -> bool:
 
 
 def lookup_card(card_number: str) -> bool:
-    ret = _lookup_mm(card_number)
-    if not ret:
-        ret = _lookup_ldap(card_number)
-    return ret
+    mm_authorized = _lookup_mm(card_number)
+    if mm_authorized:
+        # Only notify MemberMatters of access if the card was in its own tag list
+        door_access_queue.put(
+            {
+                "id_number": card_number,
+                "success": True,
+                "method": "rfid",
+            }
+        )
+        return True
+    return _lookup_ldap(card_number)
 
 
-def lookup_pin(input_value):
+def lookup_pin(input_value: str) -> bool:
     for pin in ACCESS_PINS:
         if input_value == str(pin):
             app.logger.info(f"Access granted by PIN for {ACCESS_PINS[pin]}")
@@ -145,15 +176,6 @@ def auth():
             app.logger.info(f"Got keypad input: {input_value}")
             success = lookup_pin(input_value)
         if success:
-            # Notify the websocket client to send a door_access event
-            if input_type == fanvil.CARD_ID:
-                door_access_queue.put(
-                    {
-                        "id_number": input_value,
-                        "success": True,
-                        "method": "rfid",
-                    }
-                )
             return return_code_template(200), 200
     return return_code_template(401), 401
 
@@ -161,5 +183,6 @@ def auth():
 @app.route("/fanvil/doorbell", methods=["GET"])
 @returns_xml
 def doorbell():
+    """Historical function to work around webhook limitations in Home Assistant"""
     requests.post(DOORBELL_WEBHOOK)
     return return_code_template(200), 200

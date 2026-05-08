@@ -53,7 +53,7 @@ class MMAccessClient(websocket.WebSocketApp):
             on_close=self.on_close,
         )
 
-    def run(self):
+    def run(self) -> None:
         self.run_forever(
             dispatcher=rel, reconnect=15
         )  # Set dispatcher to automatic reconnection, 15-second reconnect delay if connection closed unexpectedly
@@ -62,7 +62,7 @@ class MMAccessClient(websocket.WebSocketApp):
         rel.signal(2, rel.abort)  # Keyboard Interrupt
         rel.dispatch()
 
-    def _poll_door_access_queue(self):
+    def _poll_door_access_queue(self) -> bool:
         """Check the shared queue for door_access events and send them."""
         try:
             while True:
@@ -77,7 +77,9 @@ class MMAccessClient(websocket.WebSocketApp):
         # Re-schedule ourselves — returning True keeps the rel timeout alive
         return True
 
-    def send_door_access(self, id_number: str, success: bool, method: str = "rfid"):
+    def send_door_access(
+        self, id_number: str, success: bool, method: str = "rfid"
+    ) -> None:
         """Send a door_access command to the MemberMatters server."""
         packet = {
             "command": "door_access",
@@ -93,7 +95,7 @@ class MMAccessClient(websocket.WebSocketApp):
         )
         self.send(json.dumps(packet))
 
-    def save_tags(self, data):
+    def save_tags(self, data: dict) -> None:
         with open(MM_DATA_FILE, "w") as tags_file:
             tags_doc = {
                 "tags": data["tags"],
@@ -102,7 +104,7 @@ class MMAccessClient(websocket.WebSocketApp):
             }
             json.dump(tags_doc, tags_file)
 
-    def load_tags(self):
+    def load_tags(self) -> dict:
         with open(MM_DATA_FILE) as tags_file:
             data = json.load(tags_file)
         self.locked_out = data.get("locked_out", False)
@@ -114,10 +116,10 @@ class MMAccessClient(websocket.WebSocketApp):
         self.locked_out = locked_out
         self.save_tags(tags_doc)
 
-    def parse_command(self, data):
+    def parse_command(self, data: dict) -> None:
         command = data.get("command")
         if command == "ping":
-            websocket.send(json.dumps({"command": "pong"}))
+            self.send(json.dumps({"command": "pong"}))
 
         elif command == "reboot":
             # Not implemented (lol)
@@ -134,7 +136,7 @@ class MMAccessClient(websocket.WebSocketApp):
         elif command == "update_device_locked_out":
             self.update_device_locked_out(data.get("locked_out", False))
 
-    def on_message(self, ws, message):
+    def on_message(self, ws, message: str) -> None:
         logger.debug(f"> {message}")
         try:
             data = json.loads(message)
@@ -143,14 +145,14 @@ class MMAccessClient(websocket.WebSocketApp):
             logger.exception(e)
             return
 
-    def on_error(self, ws, error):
+    def on_error(self, ws, error: Exception) -> None:
         logger.error(f"[SOCKET ERROR]: {error}")
 
-    def on_close(self, ws, close_status_code, close_msg):
+    def on_close(self, ws, close_status_code: int, close_msg: str) -> None:
         logger.info("### closed ###")
         logger.info(f"Status: {close_status_code}, Message: {close_msg}")
 
-    def on_open(self, data):
+    def on_open(self, data) -> None:
         logger.info(f"Opened connection to {self.url}, sending auth.")
         # Send auth
         auth_packet = {
