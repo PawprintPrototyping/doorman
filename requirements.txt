@@ -1,8 +1,8 @@
-Flask>=3.1.2
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
 ldap3>=2.9.1
-requests~=2.32.5
+httpx>=0.27.0
 apprise>=1.9.0
-#json_logging>=1.2
 websocket-client~=1.9.0
-rel~=0.4.9.21
 rich~=14.2.0
+sentry-sdk>=2.0

@@ -1,24 +1,11 @@
 """
-Unified entrypoint that runs the Flask server and the MemberMatters
+Unified entrypoint that runs the FastAPI server and the MemberMatters
 websocket client in the same process.
 
-The Flask app is exposed as `app` for gunicorn/meinheld to pick up.
-The websocket client runs in a daemon thread so it dies with the process.
+Run with:
+    uvicorn main:app --host 0.0.0.0 --port 5000
+
+The websocket client is started via the FastAPI lifespan handler.
 """
 
-import threading
-
-from doorman.app import app  # noqa: F401 — gunicorn imports `app` from this module
-from websocket_client import DEBUG, MMAccessClient
-
-
-def start_websocket_client() -> None:
-    client = MMAccessClient(debug=DEBUG)
-    client.run()
-
-
-# Start the websocket client in a daemon thread
-ws_thread = threading.Thread(
-    target=start_websocket_client, daemon=True, name="mm-ws-client"
-)
-ws_thread.start()
+from doorman.app import app  # noqa: F401 — uvicorn imports `app` from this module

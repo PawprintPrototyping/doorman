@@ -2,12 +2,12 @@ import json
 import logging
 import os
 import queue
+import threading
 import time
 from enum import Enum
 
-import rel
+import sentry_sdk
 import websocket
-from rich.logging import RichHandler
 
 from doorman.app import env_bool, open_door
 from doorman.ipc import door_access_queue
@@ -32,13 +32,7 @@ MM_DATA_FILE = os.environ.get("DOORMAN_MM_DATA_FILE", "/tmp/mm-doorman.json")
 MM_API_KEY = os.environ.get("DOORMAN_MM_API_KEY", "unset")
 DEBUG = env_bool(os.environ.get("DEBUG", False))
 
-logging.basicConfig(
-    level=logging.NOTSET, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
-)
 logger = logging.getLogger("doorman_client")
-logger.setLevel(logging.INFO)
-if DEBUG:
-    logger.setLevel(logging.DEBUG)
 
 
 class MMAccessClient(websocket.WebSocketApp):
@@ -54,28 +48,37 @@ class MMAccessClient(websocket.WebSocketApp):
         )
 
     def run(self) -> None:
-        self.run_forever(
-            dispatcher=rel, reconnect=15
-        )  # Set dispatcher to automatic reconnection, 15-second reconnect delay if connection closed unexpectedly
-        # Poll the door_access queue every 0.5s and forward events to the server
-        rel.timeout(0.5, self._poll_door_access_queue)
-        rel.signal(2, rel.abort)  # Keyboard Interrupt
-        rel.dispatch()
-
-    def _poll_door_access_queue(self) -> bool:
-        """Check the shared queue for door_access events and send them."""
+        # rel's dispatcher installs a SIGINT handler at construction time,
+        # which fails off the main thread. Use run_forever()'s default select
+        # loop and pump the door_access queue from a separate daemon thread.
+        self._pump_stop = threading.Event()
+        pump = threading.Thread(
+            target=self._pump_door_access_queue,
+            daemon=True,
+            name="mm-ws-queue-pump",
+        )
+        pump.start()
         try:
-            while True:
-                event = door_access_queue.get_nowait()
+            self.run_forever(reconnect=15)
+        finally:
+            self._pump_stop.set()
+
+    def _pump_door_access_queue(self) -> None:
+        """Forward queued door_access events to the server until stopped."""
+        while not self._pump_stop.is_set():
+            try:
+                event = door_access_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            try:
                 self.send_door_access(
                     id_number=event["id_number"],
                     success=event["success"],
                     method=event.get("method", "rfid"),
                 )
-        except queue.Empty:
-            pass
-        # Re-schedule ourselves — returning True keeps the rel timeout alive
-        return True
+            except Exception as e:
+                logger.exception("Error sending door_access event")
+                sentry_sdk.capture_exception(e)
 
     def send_door_access(
         self, id_number: str, success: bool, method: str = "rfid"
@@ -126,8 +129,13 @@ class MMAccessClient(websocket.WebSocketApp):
             pass
 
         elif command == "bump":
-            # Bump the door open
-            open_door()
+            # Bump the door open. open_door is synchronous so we don't need
+            # to spin up an event loop in this websocket worker thread.
+            try:
+                open_door()
+            except Exception as e:
+                logger.exception("Error opening door from bump command")
+                sentry_sdk.capture_exception(e)
 
         elif command == "sync":
             # Save synced tags to a file
@@ -143,10 +151,12 @@ class MMAccessClient(websocket.WebSocketApp):
             self.parse_command(data)
         except json.decoder.JSONDecodeError as e:
             logger.exception(e)
+            sentry_sdk.capture_exception(e)
             return
 
     def on_error(self, ws, error: Exception) -> None:
         logger.error(f"[SOCKET ERROR]: {error}")
+        sentry_sdk.capture_exception(error)
 
     def on_close(self, ws, close_status_code: int, close_msg: str) -> None:
         logger.info("### closed ###")
@@ -163,6 +173,9 @@ class MMAccessClient(websocket.WebSocketApp):
 
 
 if __name__ == "__main__":
-    # Standalone mode: run without Flask (useful for local testing)
+    # Standalone mode: run without FastAPI (useful for local testing).
+    from doorman.app import setup_logging
+
+    setup_logging()
     client = MMAccessClient(debug=DEBUG)
     client.run()
