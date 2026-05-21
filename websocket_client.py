@@ -30,6 +30,7 @@ MM_DEVICE_TYPE = AccessDeviceType[
 ]
 MM_DATA_FILE = os.environ.get("DOORMAN_MM_DATA_FILE", "/tmp/mm-doorman.json")
 MM_API_KEY = os.environ.get("DOORMAN_MM_API_KEY", "unset")
+MM_PING_INTERVAL = int(os.environ.get("DOORMAN_MM_PING_INTERVAL", "30"))
 DEBUG = env_bool(os.environ.get("DEBUG", False))
 
 logger = logging.getLogger("doorman_client")
@@ -50,14 +51,21 @@ class MMAccessClient(websocket.WebSocketApp):
     def run(self) -> None:
         # rel's dispatcher installs a SIGINT handler at construction time,
         # which fails off the main thread. Use run_forever()'s default select
-        # loop and pump the door_access queue from a separate daemon thread.
+        # loop and pump work from daemon threads.
         self._pump_stop = threading.Event()
+        self._last_pong = time.monotonic()
         pump = threading.Thread(
             target=self._pump_door_access_queue,
             daemon=True,
             name="mm-ws-queue-pump",
         )
+        keepalive = threading.Thread(
+            target=self._pump_keepalive,
+            daemon=True,
+            name="mm-ws-keepalive",
+        )
         pump.start()
+        keepalive.start()
         try:
             self.run_forever(reconnect=15)
         finally:
@@ -78,6 +86,36 @@ class MMAccessClient(websocket.WebSocketApp):
                 )
             except Exception as e:
                 logger.exception("Error sending door_access event")
+                sentry_sdk.capture_exception(e)
+
+    def _pump_keepalive(self) -> None:
+        """Send periodic client→server pings; force reconnect on pong timeout."""
+        timeout_seconds = MM_PING_INTERVAL * 3
+        while not self._pump_stop.wait(MM_PING_INTERVAL):
+            sock = self.sock
+            if sock is None or not sock.connected:
+                # Reset so a freshly reopened socket isn't immediately stale.
+                self._last_pong = time.monotonic()
+                continue
+
+            if time.monotonic() - self._last_pong > timeout_seconds:
+                logger.warning(
+                    "MemberMatters pong timeout (%ss), forcing reconnect",
+                    timeout_seconds,
+                )
+                self._last_pong = time.monotonic()
+                try:
+                    self.close()
+                except Exception as e:
+                    logger.exception("Error closing socket on pong timeout")
+                    sentry_sdk.capture_exception(e)
+                continue
+
+            try:
+                logger.debug("sending keep-alive ping")
+                self.send(json.dumps({"command": "ping"}))
+            except Exception as e:
+                logger.exception("Error sending keep-alive ping")
                 sentry_sdk.capture_exception(e)
 
     def send_door_access(
@@ -124,6 +162,9 @@ class MMAccessClient(websocket.WebSocketApp):
         if command == "ping":
             self.send(json.dumps({"command": "pong"}))
 
+        elif command == "pong":
+            self._last_pong = time.monotonic()
+
         elif command == "reboot":
             # Not implemented (lol)
             pass
@@ -163,6 +204,7 @@ class MMAccessClient(websocket.WebSocketApp):
         logger.info(f"Status: {close_status_code}, Message: {close_msg}")
 
     def on_open(self, data) -> None:
+        self._last_pong = time.monotonic()
         logger.info(f"Opened connection to {self.url}, sending auth.")
         # Send auth
         auth_packet = {
