@@ -38,6 +38,8 @@ def _init_sentry() -> None:
             os.environ.get("DOORMAN_SENTRY_TRACES_SAMPLE_RATE", "0.1")
         ),
         send_default_pii=True,
+        auto_session_tracking=False,  # GlitchTip does not support sessions
+        # enable_logs=True,  # Opt-in: send logs to GlitchTip (uses disk space)
     )
 
 
