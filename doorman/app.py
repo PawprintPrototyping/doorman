@@ -102,6 +102,24 @@ def xml_response(status: int) -> Response:
     )
 
 
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _fire_and_forget(coro) -> None:
+    """Schedule a coroutine as a background task with error logging."""
+
+    async def _wrapper():
+        try:
+            await coro
+        except Exception as e:
+            logger.error(f"Background task failed: {e}")
+            sentry_sdk.capture_exception(e)
+
+    task = asyncio.create_task(_wrapper())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     setup_logging()
@@ -225,16 +243,13 @@ async def _lookup_ldap(request: Request, card_number: str) -> bool:
     attributes = response[0]["attributes"]
     logger.info(f"Card found: {attributes}")
     if LDAP_APPRISE_URL:
-        await asyncio.to_thread(_notify_ldap, card_number, attributes)
+        _fire_and_forget(asyncio.to_thread(_notify_ldap, card_number, attributes))
     if SUCCESS_WEBHOOK:
         webhook_data = {"_type": "CARD", "card_number": card_number}
         webhook_data.update(attributes)
-        try:
-            await request.app.state.http.post(SUCCESS_WEBHOOK, data=webhook_data)
-        except httpx.HTTPError as e:
-            logger.error("Exception while trying to send success webhook:")
-            logger.exception(e)
-            sentry_sdk.capture_exception(e)
+        _fire_and_forget(
+            request.app.state.http.post(SUCCESS_WEBHOOK, data=webhook_data)
+        )
     return True
 
 
@@ -259,14 +274,9 @@ async def lookup_pin(request: Request, input_value: str) -> bool:
             logger.info(f"Access granted by PIN for {ACCESS_PINS[pin]}")
             if SUCCESS_WEBHOOK:
                 webhook_data = {"_type": "PIN", "cn": ACCESS_PINS[pin]}
-                try:
-                    await request.app.state.http.post(
-                        SUCCESS_WEBHOOK, data=webhook_data
-                    )
-                except httpx.HTTPError as e:
-                    logger.error("Exception while trying to send success webhook:")
-                    logger.exception(e)
-                    sentry_sdk.capture_exception(e)
+                _fire_and_forget(
+                    request.app.state.http.post(SUCCESS_WEBHOOK, data=webhook_data)
+                )
             return True
     return False
 
