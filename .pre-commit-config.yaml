@@ -36,10 +36,10 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies:
-          - flask
-          - types-requests
+          - fastapi
+          - httpx
           - apprise
           - ldap3
           - websocket-client
-          - rel
           - rich
+          - sentry-sdk
