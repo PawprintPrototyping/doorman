@@ -264,6 +264,11 @@ async def lookup_card(request: Request, card_number: str) -> bool:
                 "method": "rfid",
             }
         )
+        if SUCCESS_WEBHOOK:
+            webhook_data = {"_type": "CARD", "card_number": card_number}
+            _fire_and_forget(
+                request.app.state.http.post(SUCCESS_WEBHOOK, data=webhook_data)
+            )
         return True
     return await _lookup_ldap(request, card_number)
 
