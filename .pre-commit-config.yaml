@@ -42,4 +42,5 @@ repos:
           - ldap3
           - websocket-client
           - rich
+          - python-json-logger
           - sentry-sdk

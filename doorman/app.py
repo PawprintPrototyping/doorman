@@ -76,18 +76,37 @@ DEBUG = env_bool(os.environ.get("DEBUG", False))
 HTTP_TIMEOUT = httpx.Timeout(5.0)
 
 
+LOG_JSON = env_bool(os.environ.get("DOORMAN_LOG_JSON", False))
+
+
 def setup_logging() -> None:
-    """Attach a RichHandler to the doorman + doorman_client loggers.
+    """Configure logging for doorman + doorman_client loggers.
+
+    Uses structured JSON output when DOORMAN_LOG_JSON is set (production),
+    otherwise uses Rich for human-friendly local development output.
 
     Called from the FastAPI lifespan and from websocket_client when run
     standalone, so logs appear regardless of which entrypoint is hosting us.
     """
-    handler = RichHandler()
-    handler.setFormatter(logging.Formatter("%(message)s", datefmt="[%X]"))
     level = logging.DEBUG if DEBUG else logging.INFO
+
+    if LOG_JSON:
+        from pythonjsonlogger.json import JsonFormatter
+
+        handler: logging.Handler = logging.StreamHandler()
+        handler.setFormatter(
+            JsonFormatter(
+                fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
+                rename_fields={"asctime": "timestamp", "levelname": "level"},
+            )
+        )
+    else:
+        handler = RichHandler()
+        handler.setFormatter(logging.Formatter("%(message)s", datefmt="[%X]"))
+
     for name in ("doorman", "doorman_client"):
         log = logging.getLogger(name)
-        if not any(isinstance(h, RichHandler) for h in log.handlers):
+        if not log.handlers:
             log.addHandler(handler)
         log.setLevel(level)
         log.propagate = False
