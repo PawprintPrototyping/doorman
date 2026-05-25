@@ -22,13 +22,13 @@ class CommandParseError(FanvilParseError):
     pass
 
 
-def parse_uri(uri):
+def parse_uri(uri: str) -> tuple[str, str, str]:
     command, attr = uri.split(":")
     key, val = attr.split("=")
     return command, key, val.rstrip("@1")
 
 
-def parse_command(xml):
+def parse_command(xml: bytes) -> tuple[str, str]:
     """
     Example card read POST payload:
 
@@ -44,6 +44,8 @@ def parse_command(xml):
     """
     root = ET.fromstring(xml)
     ei = root.find("ExecuteItem")
+    if ei is None or ei.text is None:
+        raise FanvilParseError("Missing ExecuteItem element or text")
     uri = ei.text.split('"')[1]
 
     try:
