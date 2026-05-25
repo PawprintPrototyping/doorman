@@ -79,10 +79,9 @@ class MMAccessClient(websocket.WebSocketApp):
             except queue.Empty:
                 continue
             try:
-                self.send_door_access(
-                    id_number=event["id_number"],
+                self.send_log_access(
+                    card_id=event["id_number"],
                     success=event["success"],
-                    method=event.get("method", "rfid"),
                 )
             except Exception as e:
                 logger.exception("Error sending door_access event")
@@ -118,22 +117,14 @@ class MMAccessClient(websocket.WebSocketApp):
                 logger.exception("Error sending keep-alive ping")
                 sentry_sdk.capture_exception(e)
 
-    def send_door_access(
-        self, id_number: str, success: bool, method: str = "rfid"
-    ) -> None:
-        """Send a door_access command to the MemberMatters server."""
+    def send_log_access(self, card_id: str, success: bool) -> None:
+        """Send a log_access or log_access_denied command to MemberMatters."""
+        command = "log_access" if success else "log_access_denied"
         packet = {
-            "command": "door_access",
-            "payload": {
-                "id_number": id_number,
-                "time": str(int(time.time())),
-                "success": success,
-                "method": method,
-            },
+            "command": command,
+            "card_id": card_id,
         }
-        logger.info(
-            f"Sending door_access: id={id_number} success={success} method={method}"
-        )
+        logger.info(f"Sending {command}: card_id={card_id}")
         self.send(json.dumps(packet))
 
     def save_tags(self, data: dict) -> None:

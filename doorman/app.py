@@ -280,7 +280,6 @@ async def lookup_card(request: Request, card_number: str) -> bool:
             {
                 "id_number": card_number,
                 "success": True,
-                "method": "rfid",
             }
         )
         if SUCCESS_WEBHOOK:
