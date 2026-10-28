@@ -15,6 +15,7 @@ concurrency:
 jobs:
   create-release:
     name: Create release
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
       contents: write
