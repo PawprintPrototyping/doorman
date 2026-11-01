@@ -62,7 +62,20 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: true
+          persist-credentials: false
+
+      - name: Configure Git push authentication
+        if: >-
+          github.event_name == 'pull_request' || inputs.auto_commit
+        run: |
+          cat > "${RUNNER_TEMP}/git-askpass" <<'EOF'
+          #!/usr/bin/env sh
+          case "$1" in
+            Username*) printf '%s\n' 'x-access-token' ;;
+            Password*) printf '%s\n' "$GITHUB_TOKEN" ;;
+          esac
+          EOF
+          chmod 700 "${RUNNER_TEMP}/git-askpass"
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
@@ -121,6 +134,10 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d  # v7.2.0
         with:
           commit_message: "style: apply pre-commit fixes"
+        env:
+          GIT_ASKPASS: ${{ runner.temp }}/git-askpass
+          GIT_TERMINAL_PROMPT: "0"
+          GITHUB_TOKEN: ${{ github.token }}
         if: >-
           steps.pre-commit.outcome != 'success' &&
           (github.event_name == 'pull_request' || inputs.auto_commit)

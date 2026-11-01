@@ -6,9 +6,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-COPY ./doorman ./doorman
-COPY ./websocket_client.py .
-COPY ./main.py .
+RUN addgroup -S doorman && adduser -S -G doorman doorman
+
+COPY --chown=doorman:doorman ./doorman ./doorman
+COPY --chown=doorman:doorman ./websocket_client.py .
+COPY --chown=doorman:doorman ./main.py .
+
+USER doorman
 
 EXPOSE 5000
 

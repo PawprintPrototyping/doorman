@@ -40,10 +40,7 @@ cp envrc.example .env
 # 3. Edit your config to suit
 
 # 4. Run the webserver with:
-docker run -d -p 5000:80 --name=doorman --env-file=.env -v ./mm-doorman.json:/tmp/mm-doorman.json doorman:latest
-
-# 5. For use with Member Matters, run the websocket client:
-docker run -d --name=doorman_ws --env-file=.env -v ./mm-doorman.json:/tmp/mm-doorman.json doorman:latest python3 websocket_client.py
+docker run -d -p 5000:5000 --name=doorman --env-file=.env -v ./mm-doorman.json:/tmp/mm-doorman.json:U doorman:latest
 ```
 
 # Configure for use with MemberMatters

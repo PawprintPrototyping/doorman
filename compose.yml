@@ -1,0 +1,12 @@
+services:
+  doorman:
+    restart: unless-stopped
+    image: ghcr.io/pawprintprototyping/doorman:latest
+    env_file: .env
+    ports:
+      - 5000:5000
+    volumes:
+      - doorman-tmp:/tmp:U
+
+volumes:
+  doorman-tmp:
